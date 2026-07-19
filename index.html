@@ -291,25 +291,7 @@
 /* ==========================================================================
    Sample data — placeholder questions only, NOT the real IOE question bank.
    ========================================================================== */
-let QUESTIONS = [
-  { no: 1, mark: 1, text: 'Simplify: 3(x + 4) &minus; 2x.', options: ['x + 12', 'x + 4', '5x + 12', 'x &minus; 12'] },
-  { no: 2, mark: 1, text: 'What is the value of 2<sup>5</sup>?', options: ['10', '16', '32', '64'] },
-  { no: 3, mark: 1, text: 'The SI unit of force is:', options: ['Joule', 'Newton', 'Watt', 'Pascal'] },
-  { no: 4, mark: 1, text: 'Which of these quantities is a vector?', options: ['Mass', 'Speed', 'Velocity', 'Energy'] },
-  { no: 5, mark: 1, text: 'The chemical symbol for Sodium is:', options: ['So', 'Sd', 'Na', 'S'] },
-  { no: 6, mark: 1, text: 'A water molecule is composed of hydrogen and:', options: ['Nitrogen', 'Oxygen', 'Carbon', 'Helium'] },
-  { no: 7, mark: 1, text: 'Choose the correctly spelled word.', options: ['Recieve', 'Receive', 'Receeve', 'Receve'] },
-  { no: 8, mark: 1, text: "Select the closest synonym of 'Rapid'.", options: ['Slow', 'Quick', 'Silent', 'Heavy'] },
-  { no: 9, mark: 2, text: 'A train 120 m long crosses a pole in 8 seconds. What is its speed in m/s?', options: ['12', '15', '20', '24'] },
-  { no: 10, mark: 2, text: 'A ball is dropped from a height of 20 m (g &asymp; 10 m/s&sup2;). About how long does it take to reach the ground?', options: ['1 s', '2 s', '3 s', '4 s'] },
-  { no: 11, mark: 2, text: 'How many moles are there in 44 g of CO&sup2; (molar mass 44 g/mol)?', options: ['0.5', '1', '2', '4'] },
-  {
-    no: 12, mark: 2,
-    passage: 'Solar panels convert sunlight directly into electricity with no moving parts and almost no fuel cost after installation. Unlike fossil-fuel plants, they produce no emissions while running, though manufacturing and disposal still carry an environmental cost. Their main drawback is that output drops sharply at night and in cloudy weather, so most solar systems are paired with batteries or the main grid to stay reliable.',
-    text: 'According to the passage, what is the main drawback of solar panels mentioned?',
-    options: ['They are expensive to manufacture', 'They produce emissions while running', 'Output drops at night and in cloudy weather', 'They require constant fuel'],
-  },
-];
+let QUESTIONS = [];
 let TOTAL = QUESTIONS.length;
 const PAGE_SIZE = 7;
 const LETTERS = ['a', 'b', 'c', 'd'];
@@ -406,6 +388,7 @@ function totalPages() { return Math.max(1, Math.ceil(TOTAL / PAGE_SIZE)); }
 
 async function rerender() {
   const savedAnswers = localStorage.getItem('answers');
+  const savedFlags = localStorage.getItem('flags');
   const savedStartedAt = localStorage.getItem('startedAt');
   if (savedAnswers == null || savedStartedAt == null) return false;
 
@@ -418,10 +401,17 @@ async function rerender() {
   } catch (err) {
     return false;
   }
+  let restoredFlags;
+  try {
+    restoredFlags = JSON.parse(savedFlags);
+  } catch (err) {
+    return false;
+  }
 
   QUESTIONS = response.questions;
   TOTAL = QUESTIONS.length;
   answers = restoredAnswers;
+  flags=restoredFlags;
   startedAt = Number(savedStartedAt);
   submitted = false;
 
@@ -456,13 +446,13 @@ async function startExam() {
   document.getElementById('examScreen').classList.remove('hidden');
   document.getElementById('goTopBtn').classList.remove('hidden');
   renderAll();
-  timerId = setInterval(tick, 1);
+  timerId = setInterval(tick, 1000);
 }
 
 function tick() {
   if (submitted) return;
-  const elapsedReal = (Date.now() - startedAt) / 1000/60;
-  const remaining = Math.max(0, SIM_TOTAL_SECONDS - elapsedReal * SPEED);
+  const elapsedReal = (Date.now() - startedAt) / 1000;
+  const remaining = Math.max(0, SIM_TOTAL_SECONDS - elapsedReal );
   const timerEl = document.getElementById('timerText');
   timerEl.textContent = fmtTimer(remaining);
   timerEl.className = remaining <= 300 ? 'danger' : remaining <= 900 ? 'warn' : '';
@@ -481,8 +471,9 @@ function goToPage(delta) {
 function choose(no, idx) {
   if (submitted) return;
   answers[no] = idx;
-  console.log(localStorage.getItem("answers"),localStorage.getItem("startedAt"));
+  console.log(localStorage.getItem("answers"),localStorage.getItem("startedAt"),localStorage.getItem("flags"));
   localStorage.setItem("answers",JSON.stringify(answers));
+  localStorage.setItem("flags",JSON.stringify(flags));
   localStorage.setItem("startedAt",startedAt);
   
   renderAll();
@@ -490,6 +481,8 @@ function choose(no, idx) {
 
 function toggleFlag(no) {
   if (flags[no]) delete flags[no]; else flags[no] = true;
+  localStorage.setItem("flags",JSON.stringify(flags));
+  console.log(localStorage.getItem("answers"),localStorage.getItem("startedAt"),localStorage.getItem("flags"));
   renderAll();
 }
 
@@ -631,96 +624,7 @@ function renderAll() {
   }).join('');
 }
 
-function reRenderAll() {
-  
-  const start = page * PAGE_SIZE;
-  const pageQuestions = QUESTIONS.slice(start, start + PAGE_SIZE);
-  const answeredCount = Object.keys(answers).length;
-  const unanswered = QUESTIONS.filter((q) => answers[q.qid] === undefined).map((q) => q.qid);
-  const isLastPage = page >= totalPages() - 1;
 
-  document.getElementById('answeredCount').textContent = answeredCount;
-  document.getElementById('answeredCount2').textContent = answeredCount;
-
-  document.getElementById('unansweredToggleLabel').textContent = showUnanswered ? 'Hide' : 'View';
-  const popup = document.getElementById('unansweredPopup');
-  if (showUnanswered) {
-    popup.classList.remove('hidden');
-    popup.innerHTML = unanswered.length === 0 ? 'All questions answered.' : `<b>Unanswered:</b> ${unanswered.join(', ')}`;
-  } else {
-    popup.classList.add('hidden');
-  }
-
-  const pagerInfo = `Questions <b>${start + 1}&ndash;${Math.min(start + PAGE_SIZE, TOTAL)}</b> of ${TOTAL}`;
-  document.getElementById('pagerInfoTop').innerHTML = pagerInfo;
-  document.getElementById('pagerInfoBottom').innerHTML = `Page ${page + 1} of ${totalPages()}`;
-  document.getElementById('prevBtnTop').disabled = page === 0;
-  document.getElementById('nextBtnTop').disabled = isLastPage;
-  document.getElementById('prevBtnBottom').disabled = page === 0;
-
-  const bottomSlot = document.getElementById('bottomRightSlot');
-  bottomSlot.innerHTML = isLastPage
-    ? '<button class="btn btn-green btn-sm" onclick="askSubmit()">Submit exam</button>'
-    : '<button class="btn btn-blue btn-sm" onclick="goToPage(1)">Next</button>';
-
-  const pagerNums = document.getElementById('pagerNums');
-  pagerNums.innerHTML = '';
-  for (let p = 0; p < totalPages(); p++) {
-    const b = document.createElement('button');
-    b.className = `pager-num ${p === page ? 'active' : ''}`;
-    b.textContent = p + 1;
-    b.onclick = () => { page = p; renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-    pagerNums.appendChild(b);
-  }
-
-  let lastPassage = null;
-  const host = document.getElementById('questionsHost');
-  host.innerHTML = pageQuestions.map((q, idx) => {
-    const prevQ = QUESTIONS[start + idx - 1];
-    const showSection = !prevQ || prevQ.weight !== q.weight;
-    const sectionNo = q.weight === QUESTIONS[0].weight ? 1 : 2;
-    const groupCount = QUESTIONS.filter((x) => x.weight === q.weight).length;
-    const groupMarks = groupCount * q.weight;
-    const showPassage = q.passage && q.passage !== lastPassage;
-    if (q.passage) lastPassage = q.passage;
-    const chosen = answers[q.qid];
-
-    let html = '';
-    if (showSection) {
-      html += `<div class="exam-section-head">
-        <span class="es-no">Section ${sectionNo}</span>
-        <span class="es-desc">Group ${sectionNo} &middot; ${groupCount} question${groupCount > 1 ? 's' : ''} &middot; ${q.weight} mark${q.weight > 1 ? 's' : ''} each &middot; ${groupMarks} marks</span>
-      </div>`;
-    }
-    if (showPassage) {
-      html += `<div class="passage">
-        <div class="ptitle">Reading Comprehension: read the passage and answer below.</div>
-        <div>${q.passage}</div>
-      </div>`;
-    }
-    html += `<div class="q ${flags[q.qid] ? 'flagged' : ''}" id="q-${q.qid}">
-      <div class="q-head">
-        <span class="q-no">${q.qid}.</span>
-        <span class="q-text">${q.question}</span>
-      </div>
-      <div class="q-meta">
-        <span>(${q.weight} mark${q.weight > 1 ? 's' : ''})</span>
-        <button class="flag-icon ${flags[q.qid] ? 'on' : ''}" title="${flags[q.qid] ? 'Flagged for review' : 'Flag for review'}" onclick="toggleFlag(${q.qid})">${flagSvg(!!flags[q.qid])}</button>
-      </div>
-      <ul class="opts">
-        ${q.options.map((opt, i) => {
-          const letter = LETTERS[i];
-          return `<li class="opt" onclick="choose(${q.qid}, ${i})">
-            <input type="radio" name="q-${q.qid}" ${answers[q.qid]===i?'checked':''}${chosen === i ? 'checked' : ''} onclick="choose(${q.qid}, ${i})" />
-            <span class="ltr">${letter})</span>
-            <span>${opt}</span>
-          </li>`;
-        }).join('')}
-      </ul>
-    </div>`;
-    return html;
-  }).join('');
-}
 /* Tab-switch / screenshot deterrent, mirrors the real exam behaviour. */
 document.addEventListener('visibilitychange', () => {
   if (submitted) return;
